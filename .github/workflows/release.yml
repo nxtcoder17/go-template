@@ -11,7 +11,8 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  id-token: write
+  contents: write # for github release
   packages: write
 
 jobs:
@@ -44,7 +45,8 @@ jobs:
             for arch in "${arch_list[@]}"; do
               export GOOS=$os
               export GOARCH=$arch
-              run build bin="./bin/go-template-${GOOS}-${GOARCH}"
+              echo "### building for os=$GOOS arch=$GOARCH ##"
+              time run build bin="./bin/go-template-${GOOS}-${GOARCH}"
             done
           done
 
@@ -55,10 +57,10 @@ jobs:
         run: |+
           if [[ "${{ github.ref }}" =~ ^refs/heads/ ]]; then
             echo "running for a branch, will delete it's nightly release"
-            gh release delete $version -y --cleanup-tag -R ${{ github.repository }} || echo "cleaned up nightly tag"
+            gh release delete $version -y --cleanup-tag -R ${{ github.repository }} || echo "⚰️ cleaned up nightly tag"
           fi
           echo "🔖 creating release for tag $version"
-          gh release create $version -R ${{ github.repository }} --generate-notes --prerelease --draft=false || echo "release ($version) already exists, will use that one"
+          gh release create $version -R ${{ github.repository }} --generate-notes --prerelease --draft=false || echo "♻️ release ($version) already exists, will use that one"
 
           gh release upload $version -R ${{github.repository}} bin/*
           echo "🚀 uploaded binaries to github release"
