@@ -1,0 +1,64 @@
+name: go template binary release
+
+on:
+  workflow_dispatch: {}
+
+  push:
+    branches:
+      - master
+
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  go-template-binary:
+    runs-on: ubuntu-latest
+    name: build go-template
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: nxtcoder17/actions/metadata@main
+        id: meta
+
+      - uses: nxtcoder17/actions/setup-cache-go@main
+        with:
+          cache_key: "go-template"
+          working_directory: .
+
+      - uses: nxtcoder17/actions/setup-nix-github@main
+        with:
+          flake_lock: "./flake.lock"
+          nix_develop_arguments: ".#default"
+
+      - name: build
+        shell: bash
+        run: |+
+          os_list=("linux" "darwin" "windows")
+          arch_list=("amd64" "arm64")
+          for os in "${os_list[@]}"; do
+            for arch in "${arch_list[@]}"; do
+              export GOOS=$os
+              export GOARCH=$arch
+              run build bin="./bin/go-template-${GOOS}-${GOARCH}"
+            done
+          done
+
+      - name: uploading binaries to github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
+        run: |+
+          if [[ "${{ github.ref }}" =~ ^refs/heads/ ]]; then
+            echo "running for a branch, will delete it's nightly release"
+            gh release delete $version -y --cleanup-tag -R ${{ github.repository }} || echo "cleaned up nightly tag"
+          fi
+          echo "🔖 creating release for tag $version"
+          gh release create $version -R ${{ github.repository }} --generate-notes --prerelease --draft=false || echo "release ($version) already exists, will use that one"
+
+          gh release upload $version -R ${{github.repository}} bin/*
+          echo "🚀 uploaded binaries to github release"
